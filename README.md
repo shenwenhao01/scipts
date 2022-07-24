@@ -1,2 +1,2 @@
-# scipts
+# scripts
 Personal scripts
