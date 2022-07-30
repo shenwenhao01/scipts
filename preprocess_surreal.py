@@ -1,5 +1,5 @@
 '''
-Python2 script
+Python2
 '''
 import json
 import os
@@ -127,7 +127,8 @@ def main(source_dir, dest_dir):
                            [  0,   0,   1] ], dtype=np.float32)
     #input_videos = [str(f) for f in sorted(Path(source_dir).rglob('*')) if is_video_ext(f) and os.path.isfile(f)]
     input_videos = get_filelist(source_dir)
-    logging.info("Total number of videos: {}".format(len(input_videos)))
+    input_videos = input_videos[3522:]
+    print("Total number of videos: {}".format(len(input_videos)))
     #print(input_videos[0])
     for idx, videoname in enumerate(tqdm(input_videos)):
         segmname = videoname.replace('.mp4', '_segm.mat')
@@ -149,15 +150,28 @@ def main(source_dir, dest_dir):
             continue
         crop_size = np.max((w,h)) + pad
         center = (y+h/2, x+w/2)
-        rgb = rgb[center[0]-crop_size/2 : center[0]+crop_size/2, \
-                  center[1]-crop_size/2 : center[1]+crop_size/2]
+
+        aa = center[0]-crop_size/2
+        ab = center[0]+crop_size/2
+        ba = center[1]-crop_size/2
+        bb = center[1]+crop_size/2
+        if aa < 0 or ab > H or ba < 0 or bb > W :
+            logging.warning("\nSkip large body: {}".format(videoname))
+            continue
+        rgb = rgb[aa : ab, ba : bb]
+        assert rgb.shape[0] == rgb.shape[1]
         rgb = cv2.resize(rgb, (out_res, out_res), interpolation=cv2.INTER_NEAREST)
+        assert rgb.shape[0]==rgb.shape[1]==128
 
         # SMPL model
         zrot = info['zrot'][0][0]        # body rotation in euler angles
         RzBody = np.array(((math.cos(zrot), -math.sin(zrot), 0),
                         (math.sin(zrot), math.cos(zrot), 0),
                         (0, 0, 1)))
+        print(info['joints3D'].shape)
+        if len(info['joints3D'].shape) != 3:
+            logging.warning("\nSkip invalid joints3D data: {}".format(videoname))
+            continue
         joints3D = info['joints3D'][:, :, t].T
         pose = info['pose'][:, t]
         pose[0:3] = rotateBody(RzBody, pose[0:3])
